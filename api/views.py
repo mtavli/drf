@@ -1,5 +1,5 @@
 from django.contrib.auth import authenticate
-
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -7,10 +7,18 @@ from rest_framework import status
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import UserSerializer, RegisterSerializer
+from .serializers import (
+    UserSerializer,
+    RegisterSerializer,
+    CategorySerializer,
+    ProductSerializer,
+    ProductImageSerializer
+)
 
-from .models import Category, Product , ProductImage
-from .serializers import CategorySerializer, ProductSerializer , ProductImageSerializer
+from .models import Category, Product, ProductImage
+
+from .filters import ProductFilter
+
 
 class RegisterView(APIView):
 
@@ -18,9 +26,12 @@ class RegisterView(APIView):
 
     def post(self, request):
 
-        serializer = RegisterSerializer(data=request.data)
+        serializer = RegisterSerializer(
+            data=request.data
+        )
 
         if serializer.is_valid():
+
             user = serializer.save()
 
             return Response(
@@ -36,6 +47,7 @@ class RegisterView(APIView):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+
 class LoginView(APIView):
 
     permission_classes = [AllowAny]
@@ -46,6 +58,7 @@ class LoginView(APIView):
         password = request.data.get("password")
 
         if not username or not password:
+
             return Response(
                 {
                     "detail": "Username and password are required."
@@ -59,6 +72,7 @@ class LoginView(APIView):
         )
 
         if user is None:
+
             return Response(
                 {
                     "detail": "Invalid credentials."
@@ -77,16 +91,24 @@ class LoginView(APIView):
             status=status.HTTP_200_OK
         )
 
+
 class ProfileView(APIView):
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
 
-        serializer = UserSerializer(request.user)
+        serializer = UserSerializer(
+            request.user
+        )
 
-        return Response(serializer.data)
-    
+        return Response(
+            serializer.data
+        )
+
+
+# CATEGORY
+
 class CategoryListView(APIView):
 
     permission_classes = [AllowAny]
@@ -100,8 +122,13 @@ class CategoryListView(APIView):
             many=True
         )
 
-        return Response(serializer.data)
-    
+        return Response(
+            serializer.data
+        )
+
+
+# PRODUCTS
+
 class ProductListView(APIView):
 
     permission_classes = [AllowAny]
@@ -112,13 +139,59 @@ class ProductListView(APIView):
             is_active=True
         ).order_by("-created_at")
 
-        serializer = ProductSerializer(
+        product_filter = ProductFilter( # filter the products based on query parameters
+            request.GET,
+            queryset=products
+        )
+
+        products = product_filter.qs
+
+
+         # order the products based on the ordering query parameter
+         
+        ordering = request.GET.get("ordering")
+
+        allowed_ordering = [
+            "price",
+            "-price",
+            "created_at",
+            "-created_at",
+            "title",
+            "-title"
+        ]
+
+        if ordering in allowed_ordering:
+
+            products = products.order_by(
+                ordering
+            )
+            
+            
+        # paginate the products using PageNumberPagination
+        paginator = PageNumberPagination()
+        paginator.page_size = 5
+
+        page = paginator.paginate_queryset(
             products,
+            request
+        )
+
+        serializer = ProductSerializer(
+            # products,
+            page, # artık page değişkenini kullanıyoruz
             many=True
         )
 
-        return Response(serializer.data)
-    
+ # Pagination için return Response(serializer.data) yerine aşağıdaki kodu kullanın
+        # return Response(
+        #     serializer.data
+        # )
+        
+        return paginator.get_paginated_response(
+            serializer.data
+        )
+
+
 class ProductDetailView(APIView):
 
     permission_classes = [AllowAny]
@@ -126,6 +199,7 @@ class ProductDetailView(APIView):
     def get(self, request, product_id):
 
         try:
+
             product = Product.objects.get(
                 id=product_id,
                 is_active=True
@@ -140,10 +214,17 @@ class ProductDetailView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = ProductSerializer(product)
+        serializer = ProductSerializer(
+            product
+        )
 
-        return Response(serializer.data)
-      
+        return Response(
+            serializer.data
+        )
+
+
+# USER PRODUCTS
+
 class UserProductView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -159,7 +240,9 @@ class UserProductView(APIView):
             many=True
         )
 
-        return Response(serializer.data)
+        return Response(
+            serializer.data
+        )
 
     def post(self, request):
 
@@ -182,7 +265,8 @@ class UserProductView(APIView):
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
-     
+
+
 class UserProductDetailView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -190,12 +274,14 @@ class UserProductDetailView(APIView):
     def get_product(self, product_id, user):
 
         try:
+
             return Product.objects.get(
                 id=product_id,
                 user=user
             )
 
         except Product.DoesNotExist:
+
             return None
 
     def put(self, request, product_id):
@@ -254,8 +340,9 @@ class UserProductDetailView(APIView):
         return Response(
             status=status.HTTP_204_NO_CONTENT
         )
-        
-#IMAGE VIEWS
+
+
+# PRODUCT IMAGES
 
 class ProductImageListView(APIView):
 
@@ -345,6 +432,19 @@ class ProductImageListView(APIView):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+
+        try:
+
+            return Product.objects.get(
+                id=product_id,
+                user=user
+            )
+
+        except Product.DoesNotExist:
+
+            return None
+
+
 class ProductImageDetailView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -421,4 +521,3 @@ class ProductImageDetailView(APIView):
         return Response(
             status=status.HTTP_204_NO_CONTENT
         )
-
