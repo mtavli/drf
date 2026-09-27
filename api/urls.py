@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    CartItemCreateView,
     CartItemDetailView,
     CartView,
     FavoriteListView,
@@ -103,4 +104,9 @@ urlpatterns = [
       CartItemDetailView.as_view(),
     name="cart-item-detail"
     ),
+    path(
+        "cart/items/",
+        CartItemCreateView.as_view(),
+        name="cart-item-create"
+    )
 ]

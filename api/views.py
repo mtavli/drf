@@ -754,3 +754,79 @@ class CartItemDetailView(APIView):
         return Response(
             status=status.HTTP_204_NO_CONTENT
         )
+        
+        
+class CartItemCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        product_id = request.data.get("product_id")
+        quantity = request.data.get("quantity", 1)
+
+        if not product_id:
+            return Response(
+                {"detail": "product_id is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            quantity = int(quantity)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "Quantity must be a valid number."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if quantity <= 0:
+            return Response(
+                {"detail": "Quantity must be greater than 0."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            product = Product.objects.get(
+                id=product_id,
+                is_active=True
+            )
+        except Product.DoesNotExist:
+            return Response(
+                {"detail": "Product not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if product.stock < quantity:
+            return Response(
+                {"detail": "Not enough stock."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cart, created = Cart.objects.get_or_create(
+            user=request.user
+        )
+
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            product=product,
+            defaults={
+                "quantity": quantity
+            }
+        )
+
+        if not created:
+            new_quantity = cart_item.quantity + quantity
+
+            if new_quantity > product.stock:
+                return Response(
+                    {"detail": "Not enough stock."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            cart_item.quantity = new_quantity
+            cart_item.save()
+
+        serializer = CartItemSerializer(cart_item)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED
+        )
