@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Category, Favorite, Product , ProductImage
+from .models import Cart, CartItem, Category, Favorite, Product , ProductImage
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -134,3 +134,59 @@ class FavoriteSerializer(serializers.ModelSerializer):
         model = Favorite
         fields = ["id", "product", "created_at"]
         read_only_fields = ["id", "product", "created_at"]
+        
+
+class CartItemSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    total_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CartItem
+        fields = [
+            "id",
+            "product",
+            "quantity",
+            "total_price",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "product",
+            "total_price",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_total_price(self, obj):
+        return obj.product.price * obj.quantity
+
+
+class CartSerializer(serializers.ModelSerializer):
+    items = CartItemSerializer(many=True, read_only=True)
+    total_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Cart
+        fields = [
+            "id",
+            "items",
+            "total_price",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "items",
+            "total_price",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_total_price(self, obj):
+        total = 0
+
+        for item in obj.items.all():
+            total += item.product.price * item.quantity
+
+        return total

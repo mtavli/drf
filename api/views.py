@@ -8,6 +8,8 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import (
+    CartItemSerializer,
+    CartSerializer,
     FavoriteSerializer,
     UserSerializer,
     RegisterSerializer,
@@ -16,7 +18,7 @@ from .serializers import (
     ProductImageSerializer
 )
 
-from .models import Category, Favorite, Product, ProductImage
+from .models import Cart, CartItem, Category, Favorite, Product, ProductImage
 
 from .filters import ProductFilter
 
@@ -587,6 +589,167 @@ class FavoriteListView(APIView):
             )
 
         favorite.delete()
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT
+        )
+        
+class CartView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        cart, created = Cart.objects.get_or_create(
+            user=request.user
+        )
+
+        serializer = CartSerializer(cart)
+
+        return Response(serializer.data)
+
+    def post(self, request):
+        product_id = request.data.get("product_id")
+        quantity = request.data.get("quantity", 1)
+
+        if not product_id:
+            return Response(
+                {"detail": "product_id is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            quantity = int(quantity)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "Quantity must be a valid number."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if quantity <= 0:
+            return Response(
+                {"detail": "Quantity must be greater than 0."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            product = Product.objects.get(
+                id=product_id,
+                is_active=True
+            )
+        except Product.DoesNotExist:
+            return Response(
+                {"detail": "Product not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if product.stock < quantity:
+            return Response(
+                {"detail": "Not enough stock."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cart, created = Cart.objects.get_or_create(
+            user=request.user
+        )
+
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=cart,
+            product=product,
+            defaults={
+                "quantity": quantity
+            }
+        )
+
+        if not created:
+            new_quantity = cart_item.quantity + quantity
+
+            if new_quantity > product.stock:
+                return Response(
+                    {"detail": "Not enough stock."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            cart_item.quantity = new_quantity
+            cart_item.save()
+
+        serializer = CartItemSerializer(cart_item)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED
+        )
+
+class CartItemDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_cart_item(self, request, item_id):
+        try:
+            return CartItem.objects.get(
+                id=item_id,
+                cart__user=request.user
+            )
+        except CartItem.DoesNotExist:
+            return None
+
+    def patch(self, request, item_id):
+        cart_item = self.get_cart_item(
+            request,
+            item_id
+        )
+
+        if cart_item is None:
+            return Response(
+                {"detail": "Cart item not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        quantity = request.data.get("quantity")
+
+        if quantity is None:
+            return Response(
+                {"detail": "Quantity is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            quantity = int(quantity)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "Quantity must be a valid number."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if quantity <= 0:
+            return Response(
+                {"detail": "Quantity must be greater than 0."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if quantity > cart_item.product.stock:
+            return Response(
+                {"detail": "Not enough stock."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cart_item.quantity = quantity
+        cart_item.save()
+
+        serializer = CartItemSerializer(cart_item)
+
+        return Response(serializer.data)
+
+    def delete(self, request, item_id):
+        cart_item = self.get_cart_item(
+            request,
+            item_id
+        )
+
+        if cart_item is None:
+            return Response(
+                {"detail": "Cart item not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        cart_item.delete()
 
         return Response(
             status=status.HTTP_204_NO_CONTENT

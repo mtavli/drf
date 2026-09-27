@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    CartItemDetailView,
+    CartView,
     FavoriteListView,
     RegisterView,
     LoginView,
@@ -90,5 +92,15 @@ urlpatterns = [
         "favorites/<int:product_id>/",
         FavoriteListView.as_view(),
         name="favorite-detail"
+    ),
+    path(
+        "cart/",
+        CartView.as_view(),
+        name="cart"
+    ),
+    path(
+     "cart/items/<int:item_id>/",
+      CartItemDetailView.as_view(),
+    name="cart-item-detail"
     ),
 ]
