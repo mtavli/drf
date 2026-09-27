@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import Category, Product , ProductImage
+from .models import Category, Favorite, Product , ProductImage
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -126,3 +126,11 @@ class ProductSerializer(serializers.ModelSerializer):
             "updated_at",
             "images" # EKLENDİ
         ]
+        
+class FavoriteSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+
+    class Meta:
+        model = Favorite
+        fields = ["id", "product", "created_at"]
+        read_only_fields = ["id", "product", "created_at"]

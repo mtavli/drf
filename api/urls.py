@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    FavoriteListView,
     RegisterView,
     LoginView,
     ProfileView,
@@ -79,10 +80,15 @@ urlpatterns = [
         ProductImageListView.as_view(),
         name="product-images"
     ),
-
+    
     path(
-        "user/products/<int:product_id>/images/<int:image_id>/",
-        ProductImageDetailView.as_view(),
-        name="product-image-detail"
+        "favorites/",
+        FavoriteListView.as_view(),
+        name="favorites"
+    ),
+    path(
+        "favorites/<int:product_id>/",
+        FavoriteListView.as_view(),
+        name="favorite-detail"
     ),
 ]
